@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>法規檢視器</title>
+    <style>
+        .entry {
+            margin: 10px 0;
+            padding: 5px;
+            cursor: pointer;
+        }
+        .entry:hover {
+            background-color: #f0f0f0;
+        }
+        #hierarchy-display {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: #333;
+            color: white;
+            padding: 10px;
+            display: none;
+        }
+        #copy-message {
+            position: fixed;
+            bottom: 50px;
+            right: 20px;
+            background: #4CAF50;
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="meta-data">
+        {{ content.meta_data | safe }}
+    </div>
+    
+    <div id="entries">
+        {% for entry in content.entries %}
+            <div class="entry" data-entry-id="{{ entry._id }}" onclick="showHierarchy(this)">
+                {{ entry.content | safe }}
+            </div>
+        {% endfor %}
+    </div>
+    
+    <div id="hierarchy-display"></div>
+    <div id="copy-message">已複製到剪貼簿!</div>
+
+    <script>
+        const regulationTitle = "{{ content.title }}";
+        
+        function showHierarchy(element) {
+            const entryId = element.dataset.entryId;
+            fetch(`/api/hierarchy/${entryId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const display = document.getElementById('hierarchy-display');
+                    const fullText = `${regulationTitle},${data.hierarchy}`;
+                    display.textContent = fullText;
+                    display.style.display = 'block';
+                    
+                    // 直接複製到剪貼簿
+                    navigator.clipboard.writeText(fullText).then(() => {
+                        const message = document.getElementById('copy-message');
+                        message.style.display = 'block';
+                        setTimeout(() => {
+                            message.style.display = 'none';
+                            // 3秒後隱藏黑色區域
+                            setTimeout(() => {
+                                display.style.display = 'none';
+                            }, 1000);
+                        }, 2000);
+                    });
+                });
+        }
+    </script>
+</body>
+</html>
