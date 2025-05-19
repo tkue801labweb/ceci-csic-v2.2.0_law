@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Dict, List
 from bson.objectid import ObjectId
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request  # 新增
 from src.mongodb_read_data import concate_ancestor_entries_unit_number as legacy_hierarchy
 from src.utils.mongodb import get_database
 from src.utils.mongodb import concate_ancestor_entries_unit_number as db_hierarchy  # ✅ 新增這行
@@ -81,6 +81,39 @@ def get_hierarchy(entry_id: str):
         return jsonify({'error': str(e)}), 500
 
     return jsonify({'hierarchy': hierarchy_path})
+
+
+@app.route('/api/regulation_search/<regulation_title>')
+def search_regulation_entries(regulation_title):
+    """在特定法規下以關鍵字搜尋條文內容"""
+    keyword = request.args.get('keyword', '').strip()
+    if not keyword:
+        return jsonify({'entries': []})
+
+    try:
+        db = get_database()
+        regulations_collection = db['regulations']
+        regulation = regulations_collection.find_one({'title': regulation_title})
+        if not regulation:
+            return jsonify({'entries': []})
+        entries_collection = db['entries']
+        # 只搜尋該法規下的條文
+        query = {
+            'regulation_id': regulation['_id'],
+            'content': {'$regex': keyword, '$options': 'i'}
+        }
+        entries = list(entries_collection.find(query))
+        # 只回傳必要欄位
+        result = [
+            {
+                '_id': str(entry['_id']),
+                'content': entry['content']
+            }
+            for entry in entries
+        ]
+        return jsonify({'entries': result})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':

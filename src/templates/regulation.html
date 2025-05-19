@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
     <title>法規檢視器</title>
     <style>
@@ -8,9 +9,11 @@
             padding: 5px;
             cursor: pointer;
         }
+
         .entry:hover {
             background-color: #f0f0f0;
         }
+
         #hierarchy-display {
             position: fixed;
             bottom: 0;
@@ -21,6 +24,7 @@
             padding: 10px;
             display: none;
         }
+
         #copy-message {
             position: fixed;
             bottom: 50px;
@@ -31,27 +35,88 @@
             border-radius: 5px;
             display: none;
         }
+
+        .highlight {
+            background-color: yellow;
+        }
     </style>
 </head>
+
 <body>
     <div id="meta-data">
         {{ content.meta_data | safe }}
     </div>
-    
+
+    <!-- 搜尋區塊 -->
+    <div style="margin-bottom: 10px;">
+        <input type="text" id="search-input" placeholder="輸入關鍵字搜尋條文">
+        <button onclick="searchEntries()">搜尋</button>
+        <button onclick="restoreEntries()">復原</button>
+    </div>
+
     <div id="entries">
         {% for entry in content.entries %}
-            <div class="entry" data-entry-id="{{ entry._id }}" onclick="showHierarchy(this)">
-                {{ entry.content | safe }}
-            </div>
+        <div class="entry" data-entry-id="{{ entry._id }}" data-content="{{ entry.content | e }}"
+            onclick="showHierarchy(this)">
+            {{ entry.content | safe }}
+        </div>
         {% endfor %}
     </div>
-    
+
     <div id="hierarchy-display"></div>
     <div id="copy-message">已複製到剪貼簿!</div>
 
     <script>
         const regulationTitle = "{{ content.title }}";
-        
+        // 儲存原始條文資料
+        const originalEntries = Array.from(document.querySelectorAll('.entry')).map(e => ({
+            id: e.dataset.entryId,
+            content: e.dataset.content
+        }));
+
+        function highlightKeyword(text, keyword) {
+            if (!keyword) return text;
+            // 避免 XSS，僅做簡單處理
+            const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(safeKeyword, 'gi');
+            return text.replace(regex, match => `<span class="highlight">${match}</span>`);
+        }
+
+        function searchEntries() {
+            const keyword = document.getElementById('search-input').value.trim();
+            if (!keyword) return;
+            fetch(`/api/regulation_search/${encodeURIComponent(regulationTitle)}?keyword=${encodeURIComponent(keyword)}`)
+                .then(res => res.json())
+                .then(data => {
+                    const entriesDiv = document.getElementById('entries');
+                    entriesDiv.innerHTML = '';
+                    data.entries.forEach(entry => {
+                        const div = document.createElement('div');
+                        div.className = 'entry';
+                        div.dataset.entryId = entry._id;
+                        div.dataset.content = entry.content;
+                        div.innerHTML = highlightKeyword(entry.content, keyword);
+                        div.onclick = function () { showHierarchy(div); };
+                        entriesDiv.appendChild(div);
+                    });
+                });
+        }
+
+        function restoreEntries() {
+            const entriesDiv = document.getElementById('entries');
+            entriesDiv.innerHTML = '';
+            originalEntries.forEach(entry => {
+                const div = document.createElement('div');
+                div.className = 'entry';
+                div.dataset.entryId = entry.id;
+                div.dataset.content = entry.content;
+                div.innerHTML = entry.content;
+                div.onclick = function () { showHierarchy(div); };
+                entriesDiv.appendChild(div);
+            });
+            document.getElementById('search-input').value = '';
+        }
+
         function showHierarchy(element) {
             const entryId = element.dataset.entryId;
             fetch(`/api/hierarchy/${entryId}`)
@@ -61,14 +126,13 @@
                     const fullText = `${regulationTitle},${data.hierarchy}`;
                     display.textContent = fullText;
                     display.style.display = 'block';
-                    
+
                     // 直接複製到剪貼簿
                     navigator.clipboard.writeText(fullText).then(() => {
                         const message = document.getElementById('copy-message');
                         message.style.display = 'block';
                         setTimeout(() => {
                             message.style.display = 'none';
-                            // 3秒後隱藏黑色區域
                             setTimeout(() => {
                                 display.style.display = 'none';
                             }, 1000);
@@ -78,4 +142,5 @@
         }
     </script>
 </body>
+
 </html>
