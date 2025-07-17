@@ -116,6 +116,50 @@ def search_regulation_entries(regulation_title):
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/multi_search')
+def multi_search():
+    """總體查詢頁面，列出所有法規供複選"""
+    try:
+        db = get_database()
+        regulations_collection = db['regulations']
+        all_titles = [doc['title'] for doc in regulations_collection.find({}, {'title': 1})]
+    except Exception as e:
+        all_titles = []
+    return render_template('multi_search.html', all_titles=all_titles)
+
+
+@app.route('/api/multi_regulation_search', methods=['POST'])
+def multi_regulation_search():
+    """多法規多關鍵字查詢 API"""
+    data = request.get_json()
+    titles = data.get('titles', [])
+    keyword = data.get('keyword', '').strip()
+    if not titles or not keyword:
+        return jsonify({'results': []})
+    try:
+        db = get_database()
+        regulations_collection = db['regulations']
+        entries_collection = db['entries']
+        results = []
+        for title in titles:
+            regulation = regulations_collection.find_one({'title': title})
+            if not regulation:
+                continue
+            query = {
+                'regulation_id': regulation['_id'],
+                'content': {'$regex': keyword, '$options': 'i'}
+            }
+            entries = list(entries_collection.find(query))
+            for entry in entries:
+                results.append({
+                    'regulation': title,
+                    'content': entry['content']
+                })
+        return jsonify({'results': results})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)

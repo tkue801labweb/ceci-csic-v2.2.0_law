@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>總體法規查詢</title>
+    <style>
+        .regulation-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+
+        .result-entry {
+            margin: 10px 0;
+            padding: 5px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .highlight {
+            background: yellow;
+        }
+    </style>
+</head>
+
+<body>
+    <h2>總體法規查詢</h2>
+    <form id="multi-search-form" onsubmit="return false;">
+        <div class="regulation-list">
+            {% for title in all_titles %}
+            <label><input type="checkbox" name="regulation" value="{{ title }}"> {{ title }}</label><br>
+            {% endfor %}
+        </div>
+        <div style="margin-top:10px;">
+            <input type="text" id="keyword" placeholder="輸入關鍵字">
+            <button type="button" onclick="multiSearch()">查詢</button>
+            <button type="button" onclick="resetSearch()">復原</button>
+        </div>
+    </form>
+    <div id="results"></div>
+    <script>
+        function highlightKeyword(text, keyword) {
+            if (!keyword) return text;
+            const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(safeKeyword, 'gi');
+            return text.replace(regex, match => `<span class='highlight'>${match}</span>`);
+        }
+        function multiSearch() {
+            const checked = Array.from(document.querySelectorAll('input[name=regulation]:checked')).map(e => e.value);
+            const keyword = document.getElementById('keyword').value.trim();
+            if (!checked.length || !keyword) return;
+            fetch('/api/multi_regulation_search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ titles: checked, keyword })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    const resultsDiv = document.getElementById('results');
+                    resultsDiv.innerHTML = '';
+                    if (!data.results || !data.results.length) {
+                        resultsDiv.innerHTML = '<p>查無結果</p>';
+                        return;
+                    }
+                    data.results.forEach(item => {
+                        const div = document.createElement('div');
+                        div.className = 'result-entry';
+                        div.innerHTML = `<b>${item.regulation}</b>:<br>` + highlightKeyword(item.content, keyword);
+                        resultsDiv.appendChild(div);
+                    });
+                });
+        }
+        function resetSearch() {
+            document.getElementById('keyword').value = '';
+            document.querySelectorAll('input[name=regulation]').forEach(e => e.checked = false);
+            document.getElementById('results').innerHTML = '';
+        }
+    </script>
+</body>
+
+</html>
