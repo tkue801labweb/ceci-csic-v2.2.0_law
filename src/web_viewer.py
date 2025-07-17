@@ -160,6 +160,29 @@ def multi_regulation_search():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/find_entry_id', methods=['POST'])
+def find_entry_id():
+    """根據 regulation title 與 content 找出 entry_id"""
+    data = request.get_json()
+    regulation = data.get('regulation')
+    content = data.get('content')
+    if not regulation or not content:
+        return jsonify({'entry_id': None})
+    try:
+        db = get_database()
+        regulations_collection = db['regulations']
+        entries_collection = db['entries']
+        reg = regulations_collection.find_one({'title': regulation})
+        if not reg:
+            return jsonify({'entry_id': None})
+        entry = entries_collection.find_one({'regulation_id': reg['_id'], 'content': content})
+        if not entry:
+            return jsonify({'entry_id': None})
+        return jsonify({'entry_id': str(entry['_id'])})
+    except Exception as e:
+        return jsonify({'entry_id': None, 'error': str(e)})
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8000))
     app.run(host='0.0.0.0', port=port)

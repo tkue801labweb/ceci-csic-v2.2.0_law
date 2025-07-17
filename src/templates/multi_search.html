@@ -38,10 +38,15 @@
         </div>
     </form>
     <div id="results"></div>
+    <div id="hierarchy-display"
+        style="display:none;position:fixed;bottom:0;left:0;right:0;background:#333;color:white;padding:10px;"></div>
+    <div id="copy-message"
+        style="display:none;position:fixed;bottom:50px;right:20px;background:#4CAF50;color:white;padding:10px;border-radius:5px;">
+        已複製到剪貼簿!</div>
     <script>
         function highlightKeyword(text, keyword) {
             if (!keyword) return text;
-            const safeKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const safeKeyword = keyword.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
             const regex = new RegExp(safeKeyword, 'gi');
             return text.replace(regex, match => `<span class='highlight'>${match}</span>`);
         }
@@ -66,6 +71,9 @@
                         const div = document.createElement('div');
                         div.className = 'result-entry';
                         div.innerHTML = `<b>${item.regulation}</b>:<br>` + highlightKeyword(item.content, keyword);
+                        div.dataset.regulation = item.regulation;
+                        div.dataset.content = item.content;
+                        div.onclick = function () { showHierarchy(div, item); };
                         resultsDiv.appendChild(div);
                     });
                 });
@@ -74,6 +82,37 @@
             document.getElementById('keyword').value = '';
             document.querySelectorAll('input[name=regulation]').forEach(e => e.checked = false);
             document.getElementById('results').innerHTML = '';
+        }
+        // 新增：查詢點擊複製階層功能
+        function showHierarchy(element, item) {
+            // 需先查詢 entry_id
+            fetch('/api/find_entry_id', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ regulation: item.regulation, content: item.content })
+            })
+                .then(res => res.json())
+                .then(data => {
+                    if (!data.entry_id) return;
+                    fetch(`/api/hierarchy/${data.entry_id}`)
+                        .then(response => response.json())
+                        .then(hier => {
+                            const display = document.getElementById('hierarchy-display');
+                            const fullText = `${item.regulation},${hier.hierarchy}`;
+                            display.textContent = fullText;
+                            display.style.display = 'block';
+                            navigator.clipboard.writeText(fullText).then(() => {
+                                const message = document.getElementById('copy-message');
+                                message.style.display = 'block';
+                                setTimeout(() => {
+                                    message.style.display = 'none';
+                                    setTimeout(() => {
+                                        display.style.display = 'none';
+                                    }, 1000);
+                                }, 2000);
+                            });
+                        });
+                });
         }
     </script>
 </body>
